@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PQC vs RSA — Live Encryption Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10;
+  --surface: #111318;
+  --surface2: #181c24;
+  --border: #1e2330;
+  --border2: #2a3040;
+  --text: #e8eaf0;
+  --muted: #6b7280;
+  --dim: #3a4050;
+  --rsa: #e85d3a;
+  --rsa-dim: rgba(232,93,58,0.12);
+  --rsa-glow: rgba(232,93,58,0.25);
+  --pqc: #22d3a0;
+  --pqc-dim: rgba(34,211,160,0.10);
+  --pqc-glow: rgba(34,211,160,0.22);
+  --amber: #f5a623;
+  --mono: 'Space Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Grid bg */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(34,211,160,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,211,160,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--pqc);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+h1 {
+  font-family: var(--mono);
+  font-size: clamp(22px, 4vw, 36px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+h1 span.rsa-label { color: var(--rsa); }
+h1 span.pqc-label { color: var(--pqc); }
+
+.subtitle {
+  font-size: 15px;
+  color: var(--muted);
+  font-weight: 300;
+  max-width: 520px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* Input area */
+.input-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 28px;
+}
+
+.input-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.message-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+textarea {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 400;
+  padding: 12px 16px;
+  resize: none;
+  height: 52px;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.2s;
+}
+textarea:focus { border-color: var(--pqc); }
+
+.encrypt-btn {
+  background: var(--pqc);
+  color: #041a13;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0 24px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.encrypt-btn:hover { background: #1ab88a; }
+.encrypt-btn:active { transform: scale(0.97); }
+
+/* Two columns */
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+@media (max-width: 700px) { .columns { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.algo-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.rsa .algo-dot { background: var(--rsa); box-shadow: 0 0 8px var(--rsa-glow); }
+.pqc .algo-dot { background: var(--pqc); box-shadow: 0 0 8px var(--pqc-glow); }
+
+.algo-name {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.rsa .algo-name { color: var(--rsa); }
+.pqc .algo-name { color: var(--pqc); }
+
+.algo-full {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.card-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+.field-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.code-block {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+  line-height: 1.6;
+  min-height: 52px;
+  max-height: 120px;
+  overflow-y: auto;
+  transition: all 0.3s;
+}
+.code-block.has-value { color: var(--text); }
+.rsa .code-block.has-value { border-color: rgba(232,93,58,0.25); }
+.pqc .code-block.has-value { border-color: rgba(34,211,160,0.2); }
+
+.stat-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.stat-pill span {
+  font-weight: 700;
+}
+.rsa .stat-pill span { color: var(--rsa); }
+.pqc .stat-pill span { color: var(--pqc); }
+
+/* Quantum attack section */
+.attack-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+
+.attack-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(245,166,35,0.05);
+}
+
+.attack-icon {
+  width: 28px; height: 28px;
+  background: rgba(245,166,35,0.15);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+
+.attack-title {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--amber);
+  letter-spacing: 0.05em;
+}
+
+.attack-sub { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+.attack-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+@media (max-width: 700px) { .attack-body { grid-template-columns: 1fr; } }
+
+.attack-col {
+  padding: 20px 18px;
+}
+.attack-col:first-child { border-right: 1px solid var(--border); }
+
+.attack-result {
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.4s;
+}
+
+.attack-result.idle {
+  background: var(--surface2);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  align-items: center;
+  justify-content: center;
+}
+
+.attack-result.vulnerable {
+  background: var(--rsa-dim);
+  border: 1px solid var(--rsa);
+}
+
+.attack-result.secure {
+  background: var(--pqc-dim);
+  border: 1px solid var(--pqc);
+}
+
+.result-status {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vulnerable .result-status { color: var(--rsa); }
+.secure .result-status { color: var(--pqc); }
+
+.result-body { font-size: 13px; color: var(--muted); }
+
+/* Progress bar */
+.progress-wrap { margin-top: 4px; }
+.progress-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.progress-bar {
+  height: 4px;
+  background: var(--border2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  width: 0%;
+  transition: width 1.8s cubic-bezier(0.4,0,0.2,1);
+}
+.rsa-fill { background: var(--rsa); }
+.pqc-fill { background: var(--pqc); }
+
+/* Explainer */
+.explainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 700px) { .explainer { grid-template-columns: 1fr; } }
+
+.explain-card {
+  border-radius: 10px;
+  padding: 18px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.explain-card.rsa-explain { background: var(--rsa-dim); border: 1px solid rgba(232,93,58,0.2); }
+.explain-card.pqc-explain { background: var(--pqc-dim); border: 1px solid rgba(34,211,160,0.18); }
+
+.explain-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.rsa-explain .explain-title { color: var(--rsa); }
+.pqc-explain .explain-title { color: var(--pqc); }
+
+/* Scrollbar */
+.code-block::-webkit-scrollbar { width: 4px; }
+.code-block::-webkit-scrollbar-track { background: transparent; }
+.code-block::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* Animate in */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.card, .attack-section, .explainer { animation: fadeUp 0.5s ease both; }
+.columns .card:nth-child(2) { animation-delay: 0.07s; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Live Encryption Demo</div>
+    <h1><span class="rsa-label">Classical RSA</span> vs <span class="pqc-label">Post-Quantum ML-KEM</span></h1>
+    <p class="subtitle">Type any message below and see how each algorithm encrypts it — then watch what happens when a quantum computer attacks both.</p>
+  </header>
+
+  <div class="input-section">
+    <label class="input-label" for="msg">Plaintext message</label>
+    <div class="message-row">
+      <textarea id="msg" placeholder="Type a message to encrypt...">Classified flight manifest — route AV-4471</textarea>
+      <button class="encrypt-btn" onclick="runDemo()">ENCRYPT →</button>
+    </div>
+  </div>
+
+  <div class="columns">
+    <!-- RSA Card -->
+    <div class="card rsa">
+      <div class="card-header">
+        <div class="algo-dot"></div>
+        <div class="algo-name">RSA-2048</div>
+        <div class="algo-full">Classical encryption</div>
+      </div>
+      <div class="card-body">
+        <div>
+          <div class="field-label">Public key (excerpt)</div>
+          <div class="code-block" id="rsa-key">—</div>
+        </div>
+        <div>
+          <div class="field-label">Ciphertext</div>
+          <div class="code-block" id="rsa-cipher">—</div>
+        </div>
+        <div>
+          <div class="field-label">Decrypted output</div>
+          <div class="code-block" id="rsa-decrypted">—</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-pill">Key size <span>2048 bits</span></div>
+          <div class="stat-pill">Based on <span>factoring</span></div>
+          <div class="stat-pill">Standard since <span>1977</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PQC Card -->
+    <div class="card pqc">
+      <div class="card-header">
+        <div class="algo-dot"></div>
+        <div class="algo-name">ML-KEM</div>
+        <div class="algo-full">NIST FIPS 203 — post-quantum</div>
+      </div>
+      <div class="card-body">
+        <div>
+          <div class="field-label">Public key (excerpt)</div>
+          <div class="code-block" id="pqc-key">—</div>
+        </div>
+        <div>
+          <div class="field-label">Ciphertext</div>
+          <div class="code-block" id="pqc-cipher">—</div>
+        </div>
+        <div>
+          <div class="field-label">Decrypted output</div>
+          <div class="code-block" id="pqc-decrypted">—</div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-pill">Key size <span>~1184 bytes</span></div>
+          <div class="stat-pill">Based on <span>lattices</span></div>
+          <div class="stat-pill">NIST standard <span>2024</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quantum Attack -->
+  <div class="attack-section">
+    <div class="attack-header">
+      <div class="attack-icon">⚛</div>
+      <div class="attack-title">QUANTUM ATTACK SIMULATION</div>
+      <div class="attack-sub">Shor's algorithm · CRQC model</div>
+    </div>
+    <div class="attack-body">
+      <div class="attack-col">
+        <div class="field-label" style="color:var(--rsa);margin-bottom:10px;">RSA-2048 under quantum attack</div>
+        <div class="attack-result idle" id="rsa-attack">Encrypt a message to run simulation</div>
+        <div class="progress-wrap" style="margin-top:12px">
+          <div class="progress-label" id="rsa-progress-label"></div>
+          <div class="progress-bar"><div class="progress-fill rsa-fill" id="rsa-bar"></div></div>
+        </div>
+      </div>
+      <div class="attack-col">
+        <div class="field-label" style="color:var(--pqc);margin-bottom:10px;">ML-KEM under quantum attack</div>
+        <div class="attack-result idle" id="pqc-attack">Encrypt a message to run simulation</div>
+        <div class="progress-wrap" style="margin-top:12px">
+          <div class="progress-label" id="pqc-progress-label"></div>
+          <div class="progress-bar"><div class="progress-fill pqc-fill" id="pqc-bar"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Explainer -->
+  <div class="explainer">
+    <div class="explain-card rsa-explain">
+      <div class="explain-title">Why RSA is vulnerable</div>
+      RSA security relies on the difficulty of factoring large numbers — a problem classical computers can't solve efficiently. Shor's algorithm, running on a sufficiently powerful quantum computer, solves this in polynomial time. A 2048-bit RSA key that would take classical computers billions of years to crack could be broken in hours by a cryptographically relevant quantum computer (CRQC).
+    </div>
+    <div class="explain-card pqc-explain">
+      <div class="explain-title">Why ML-KEM holds</div>
+      ML-KEM (CRYSTALS-Kyber) is built on the hardness of lattice problems — specifically the Module Learning With Errors (MLWE) problem. No known quantum algorithm, including Shor's or Grover's, provides significant advantage against lattice problems. Even with a full CRQC, breaking ML-KEM would require computational resources that are not physically feasible.
+    </div>
+  </div>
+
+</div>
+
+<script>
+function randHex(len) {
+  const chars = '0123456789abcdef';
+  return Array.from({length: len}, () => chars[Math.floor(Math.random() * 16)]).join('');
+}
+
+function randB64(len) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  return Array.from({length: len}, () => chars[Math.floor(Math.random() * 64)]).join('') + '==';
+}
+
+function xorEncrypt(msg, seed) {
+  return Array.from(msg).map((c, i) =>
+    ('0' + ((c.charCodeAt(0) ^ ((seed * (i + 7)) % 256))).toString(16)).slice(-2)
+  ).join('');
+}
+
+function typeInto(el, text, speed = 8) {
+  el.textContent = '';
+  el.classList.add('has-value');
+  let i = 0;
+  const interval = setInterval(() => {
+    el.textContent += text[i++];
+    if (i >= text.length) clearInterval(interval);
+  }, speed);
+}
+
+function runDemo() {
+  const msg = document.getElementById('msg').value.trim();
+  if (!msg) return;
+
+  const seed = msg.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+
+  // RSA simulation
+  const rsaKey = '30820122300d06092a864886f70d01010105000382010f003082010a0282010100' + randHex(256);
+  const rsaCipher = randHex(512);
+  const rsaDecrypted = msg;
+
+  typeInto(document.getElementById('rsa-key'), rsaKey.substring(0, 120) + '...');
+  setTimeout(() => typeInto(document.getElementById('rsa-cipher'), rsaCipher, 4), 200);
+  setTimeout(() => typeInto(document.getElementById('rsa-decrypted'), rsaDecrypted), 600);
+
+  // PQC simulation — larger key, different structure
+  const pqcKey = randB64(200);
+  const pqcCipher = randB64(220);
+  const pqcDecrypted = msg;
+
+  setTimeout(() => typeInto(document.getElementById('pqc-key'), pqcKey.substring(0, 140) + '...'), 100);
+  setTimeout(() => typeInto(document.getElementById('pqc-cipher'), pqcCipher, 4), 300);
+  setTimeout(() => typeInto(document.getElementById('pqc-decrypted'), pqcDecrypted), 700);
+
+  // Reset attack state
+  const rsaAttack = document.getElementById('rsa-attack');
+  const pqcAttack = document.getElementById('pqc-attack');
+  rsaAttack.className = 'attack-result idle';
+  pqcAttack.className = 'attack-result idle';
+  rsaAttack.innerHTML = 'Initialising quantum attack...';
+  pqcAttack.innerHTML = 'Initialising quantum attack...';
+  document.getElementById('rsa-bar').style.width = '0%';
+  document.getElementById('pqc-bar').style.width = '0%';
+  document.getElementById('rsa-progress-label').textContent = '';
+  document.getElementById('pqc-progress-label').textContent = '';
+
+  // RSA attack sequence
+  setTimeout(() => {
+    document.getElementById('rsa-progress-label').textContent = 'Shor\'s algorithm: factoring public modulus...';
+    document.getElementById('rsa-bar').style.width = '100%';
+  }, 900);
+
+  setTimeout(() => {
+    rsaAttack.className = 'attack-result vulnerable';
+    rsaAttack.innerHTML = `
+      <div class="result-status">⚠ ENCRYPTION BROKEN</div>
+      <div class="result-body">Shor's algorithm successfully factored the 2048-bit RSA modulus. Private key recovered. Plaintext exposed: <strong style="color:var(--rsa)">"${msg}"</strong></div>
+    `;
+    document.getElementById('rsa-progress-label').textContent = 'Private key recovered in ~4.2 hours (simulated CRQC)';
+  }, 2900);
+
+  // PQC attack sequence
+  setTimeout(() => {
+    document.getElementById('pqc-progress-label').textContent = 'Attempting lattice basis reduction (BKZ algorithm)...';
+    document.getElementById('pqc-bar').style.width = '18%';
+  }, 1100);
+
+  setTimeout(() => {
+    document.getElementById('pqc-progress-label').textContent = 'No quantum speedup available — MLWE problem holds...';
+    document.getElementById('pqc-bar').style.width = '18%';
+  }, 3200);
+
+  setTimeout(() => {
+    pqcAttack.className = 'attack-result secure';
+    pqcAttack.innerHTML = `
+      <div class="result-status">✓ ENCRYPTION HOLDS</div>
+      <div class="result-body">Quantum attack failed. The Module Learning With Errors (MLWE) lattice problem provides no exploitable quantum advantage. Plaintext remains protected.</div>
+    `;
+    document.getElementById('pqc-progress-label').textContent = 'Estimated time to break: computationally infeasible';
+  }, 4400);
+}
+
+// Run on load with default message
+window.addEventListener('load', () => setTimeout(runDemo, 400));
+</script>
+</body>
+</html>
